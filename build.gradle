@@ -1,13 +1,7 @@
 plugins {
     id 'java'
-}
-
-java {
-    // Using JDK 16, only for fun. Waiting for LTS version 17.
-    // Using toolchain to autoselect jdk version.
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(16)
-    }
+    // Plugin for jpackage (jdk14+) (see https://github.com/petr-panteleyev/jpackage-gradle-plugin)
+    id "org.panteleyev.jpackageplugin" version "1.3.1"
 }
 
 group 'org.terra.incognita'
@@ -15,6 +9,49 @@ version '0.1-SNAPSHOT'
 
 repositories {
     mavenCentral()
+}
+
+java {
+    // Using JDK 16, only for fun. Waiting for LTS version 17.
+    // Using toolchain to auto select jdk version.
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(16)
+    }
+}
+
+// Using jpackage to create an installation package (Linux, windows, macos)
+// Prepare all files needed for the package
+// First: dependnecies
+task copyDependencies(type:Copy) {
+    from(configurations.runtimeClasspath)
+    into("${buildDir}/jars")
+}
+
+// Next: project jar file
+task copyJar(type:Copy) {
+    dependsOn("jar")
+    from tasks.jar
+    into "${buildDir}/jars"
+}
+
+// Create package, SO depend, to install program
+jpackage {
+    dependsOn(':build','copyDependencies','copyJar')
+    type = "deb"
+
+
+    appName = "FlyOnTheWallCatcher"
+    appDescription = "A Java MitM detection tool for https"
+
+    appVersion = project.version.toString()
+    vendor = "org.terra.incognita"
+    copyright = "Copyright (c) 2021 David Pérez Serrada <dserrada at gmail dot com>"
+
+    mainJar = "${jar.archiveFileName.get()}"
+    mainClass = "org.terra.incognita.fotwc.cli.Main"
+
+    input  = "$buildDir/jars"
+    destination = "$buildDir/dist"
 }
 
 dependencies {
