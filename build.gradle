@@ -2,6 +2,14 @@ plugins {
     id 'java'
 }
 
+java {
+    // Using JDK 16, only for fun. Waiting for LTS version 17.
+    // Using toolchain to autoselect jdk version.
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(16)
+    }
+}
+
 group 'org.terra.incognita'
 version '0.1-SNAPSHOT'
 
