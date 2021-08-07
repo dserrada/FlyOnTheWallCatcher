@@ -19,6 +19,11 @@ java {
     }
 }
 
+compileJava {
+    // Using picocli to provide a command line interface to this program (see https://picocli.info/)
+    options.compilerArgs += ["-Aproject=${rootProject.group}/${rootProject.name}"]
+}
+
 // Using jpackage to create an installation package (Linux, windows, macos)
 // Prepare all files needed for the package
 // First: dependnecies
@@ -61,6 +66,10 @@ dependencies {
     // https://mvnrepository.com/artifact/org.apache.logging.log4j/log4j-api
     implementation group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.14.1'
     implementation group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.14.1'
+
+    // Command line utility
+    implementation 'info.picocli:picocli:4.6.1'
+    annotationProcessor 'info.picocli:picocli-codegen:4.6.1'
 
 }
 
