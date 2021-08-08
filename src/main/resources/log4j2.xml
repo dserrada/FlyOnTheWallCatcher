@@ -7,7 +7,7 @@
     </Appenders>
     <Loggers>
         <!-- root level to trace for developing. FIXME: Change with a command line option -->
-        <Root level="trace">
+        <Root level="debug">
             <AppenderRef ref="Console"/>
         </Root>
     </Loggers>
