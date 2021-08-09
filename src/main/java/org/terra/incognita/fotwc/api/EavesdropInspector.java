@@ -12,5 +12,5 @@ public interface EavesdropInspector {
      * @param hostname  The hostname where a https connection is made.
      * @return The status of the detection process.
      */
-    public InspectionStatus inspectHTTPSConnection(String hostname);
+    public InspectionStatus.StatusCode inspectHTTPSConnection(String hostname, String expectedFingerprint);
 }

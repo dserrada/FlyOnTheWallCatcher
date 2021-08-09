@@ -12,11 +12,11 @@ import java.io.*;
 import java.math.BigInteger;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.nio.charset.StandardCharsets;
 import java.security.KeyManagementException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 
@@ -31,22 +31,14 @@ public class ServerCertficateFingerprint implements EavesdropInspector {
     private static final Logger log = LogManager.getLogger(ServerCertficateFingerprint.class);
 
     @Override
-    public InspectionStatus inspectHTTPSConnection(String hostname) {
-        log.trace("Checking fingerprint of servercertificate to {}",hostname);
+    public InspectionStatus.StatusCode inspectHTTPSConnection(String hostname, String expectedFingerprint) {
+        log.trace("Checking fingerprint of servercertificate to {} expected SHA1" ,hostname, expectedFingerprint);
         try {
             SSLContext sc = SSLContext.getInstance("SSL");
-            sc.init(null,new TrustManager[] {new HostnameVerifier()}, new SecureRandom());
-
-            HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
-            /*
-            HttpsURLConnection.setDefaultHostnameVerifier((s,session) -> {
-                log.trace("setDefaultHostnameVerifier - s {}",s);
-                return true;
-            });
-             */
+            sc.init(null,new TrustManager[] {new MyHostnameVerifier()}, new SecureRandom());
 
             // See https://www.baeldung.com/java-ssl-handshake-failures
-            SocketFactory factory = SSLSocketFactory.getDefault();
+            SocketFactory factory = sc.getSocketFactory();
             try (Socket connection = factory.createSocket(hostname, 443)) {
                 SSLSocket sslsocket = (SSLSocket) connection;
                 // FIXME: Control ciphers
@@ -64,12 +56,21 @@ public class ServerCertficateFingerprint implements EavesdropInspector {
                 log.trace("handksake.protocol: {}",sslsocket.getHandshakeApplicationProtocol());
                 SSLSession sslSession = sslsocket.getSession();
                 if ( sslSession.getPeerCertificates() != null ) {
-                    byte [] data = sslSession.getPeerCertificates()[0].getPublicKey().getEncoded();
-                    BigInteger bigIntegerData = new BigInteger(1, data);
-                    log.trace("Bytes: " + bigIntegerData.toString(16).toLowerCase());
+                    byte [] data = sslSession.getPeerCertificates()[0].getEncoded();
                     MessageDigest digest = MessageDigest.getInstance("SHA-1");
                     BigInteger bigInteger = new BigInteger(1, digest.digest(data));
-                    log.trace("Bytes: " + bigInteger.toString(16).toLowerCase());
+                    String sha1 = bigInteger.toString(16).toUpperCase();
+                    log.trace("SHA-1: {} ", sha1);
+                    if ( sha1.equalsIgnoreCase(sha1.replace(":","")) ) {
+                        log.info("Fingerprint SHA-1 matched...");
+                        return InspectionStatus.StatusCode.NO_EAVESDROP_DETECTED;
+                    } else {
+                        log.error("Fingerprint SHA-1 NOT matched... eavesdrop detected");
+                        return InspectionStatus.StatusCode.EAVESDROP_DETECTED;
+                    }
+                } else {
+                    log.error("No peer certificate found...");
+                    // FIXME: Throw exception???
                 }
 
                 BufferedWriter bos = new BufferedWriter(new OutputStreamWriter(sslsocket.getOutputStream()));
@@ -77,7 +78,7 @@ public class ServerCertficateFingerprint implements EavesdropInspector {
                 BufferedReader input = new BufferedReader(new InputStreamReader(sslsocket.getInputStream()));
                 log.trace("Created reader");
 
-                bos.write("GET / HTTP/1.1\r\n");
+                bos.write("OPTIONS * HTTP/1.1\r\n");
                 bos.write(("Host: "+hostname + "\r\n"));
                 bos.write("\r\n");
                 bos.flush();
@@ -87,7 +88,7 @@ public class ServerCertficateFingerprint implements EavesdropInspector {
 
                 String line = null; // FIXME: Use streams
                 while( (line = input.readLine()) != null ) {
-                    // log.trace(line);
+                    log.trace(line);
                 }
 
                 log.trace("End reading");
@@ -99,27 +100,50 @@ public class ServerCertficateFingerprint implements EavesdropInspector {
 
             log.debug("Secured connection performed successfully");
 
-        } catch (NoSuchAlgorithmException | KeyManagementException e) {
+        } catch (NoSuchAlgorithmException | KeyManagementException | CertificateEncodingException e) {
             log.error("NoSuchAlgorithmException error",e);
         }
         return null;
     }
 
-    private static class HostnameVerifier implements X509TrustManager {
+    private static class MyHostnameVerifier extends X509ExtendedTrustManager {
 
         /**
          * Simple log4j2 logger
          */
-        private static final Logger log = LogManager.getLogger(HostnameVerifier.class);
+        private static final Logger log = LogManager.getLogger(MyHostnameVerifier.class);
 
-        public HostnameVerifier() {
-            log.debug("HostnameVerifier - Constructor");
+        @Override
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
+            log.trace("checkClientTrusted(X509Certificate[] x509Certificates, String s, Socket socket) - No checking client's certificate");
+
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
+            log.trace("checkServerTrusted(X509Certificate[] x509Certificates, String s, Socket socket)");
+            if ( x509Certificates != null ) {
+                log.debug("checkServerTrusted - firstCertificate: serialNumber: {} ",x509Certificates[0].getSerialNumber().toString(16).toLowerCase());
+            } else {
+                log.error("checkServerTrusted - Couldn't get certificate");
+            }
+            // THIS IS THE METHOD TO IMPLEMENT
+        }
+
+        @Override
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
+            log.trace("heckClientTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) - No checking client's certificate");
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
+            log.trace("checkServerTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine)");
         }
 
 
         @Override
         public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-            log.trace("checkClientTrusted - s: {}",s);
+            log.trace("checkClientTrusted(X509Certificate[] x509Certificates, String s) - No checking client's certificate");
         }
 
         @Override
