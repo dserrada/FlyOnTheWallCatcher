@@ -32,7 +32,7 @@ public class ServerCertficateFingerprint implements EavesdropInspector {
 
     @Override
     public InspectionStatus.StatusCode inspectHTTPSConnection(String hostname, String expectedFingerprint) {
-        log.trace("Checking fingerprint of servercertificate to {} expected SHA1" ,hostname, expectedFingerprint);
+        log.atTrace().log("Checking fingerprint of servercertificate to {} expected SHA1" ,hostname, expectedFingerprint);
         try {
             SSLContext sc = SSLContext.getInstance("SSL");
             sc.init(null,new TrustManager[] {new MyHostnameVerifier()}, new SecureRandom());
@@ -51,16 +51,16 @@ public class ServerCertficateFingerprint implements EavesdropInspector {
                 sslsocket.setSSLParameters(sslParams);
 
                 sslsocket.setSoTimeout(5*1000);  // FIXME: Config
-                log.trace("Setting sotime");
+                log.atTrace().log("Setting sotime");
 
-                log.trace("handksake.protocol: {}",sslsocket.getHandshakeApplicationProtocol());
+                log.atTrace().log("handksake.protocol: {}",sslsocket.getHandshakeApplicationProtocol());
                 SSLSession sslSession = sslsocket.getSession();
                 if ( sslSession.getPeerCertificates() != null ) {
                     byte [] data = sslSession.getPeerCertificates()[0].getEncoded();
                     MessageDigest digest = MessageDigest.getInstance("SHA-1");
                     BigInteger bigInteger = new BigInteger(1, digest.digest(data));
                     String sha1 = bigInteger.toString(16).toUpperCase();
-                    log.trace("SHA-1: {} ", sha1);
+                    log.atTrace().log("SHA-1: {} ", sha1);
                     if ( sha1.equalsIgnoreCase(sha1.replace(":","")) ) {
                         log.info("Fingerprint SHA-1 matched...");
                         return InspectionStatus.StatusCode.NO_EAVESDROP_DETECTED;
@@ -69,41 +69,48 @@ public class ServerCertficateFingerprint implements EavesdropInspector {
                         return InspectionStatus.StatusCode.EAVESDROP_DETECTED;
                     }
                 } else {
-                    log.error("No peer certificate found...");
+                    log.atError().log("No peer certificate found...");
                     // FIXME: Throw exception???
                 }
 
-                BufferedWriter bos = new BufferedWriter(new OutputStreamWriter(sslsocket.getOutputStream()));
-                log.trace("Created writer");
-                BufferedReader input = new BufferedReader(new InputStreamReader(sslsocket.getInputStream()));
-                log.trace("Created reader");
-
-                bos.write("OPTIONS * HTTP/1.1\r\n");
-                bos.write(("Host: "+hostname + "\r\n"));
-                bos.write("\r\n");
-                bos.flush();
-
-                log.trace("Flushed");
-
-
-                String line = null; // FIXME: Use streams
-                while( (line = input.readLine()) != null ) {
-                    log.trace(line);
-                }
-
-                log.trace("End reading");
+                sendSomeData(hostname, sslsocket);
             } catch (UnknownHostException e) {
-                log.error("UnknownHostException",e);
+                log.atError().withThrowable(e).log("UnknownHostException");
             } catch (IOException e) {
-                log.error("IOException",e);
+                log.atError().withThrowable(e).log("UnknownHostException");
             }
 
-            log.debug("Secured connection performed successfully");
+            log.atDebug().log("Secured connection performed successfully");
 
         } catch (NoSuchAlgorithmException | KeyManagementException | CertificateEncodingException e) {
             log.error("NoSuchAlgorithmException error",e);
         }
         return null;
+    }
+
+    /**
+     * Send some data through sockets.
+     *
+     * @param hostname      The hostname
+     * @param sslsocket
+     * @throws IOException
+     */
+    private void sendSomeData(String hostname, SSLSocket sslsocket) throws IOException {
+        BufferedWriter bos = new BufferedWriter(new OutputStreamWriter(sslsocket.getOutputStream()));
+        log.atTrace().log("Created writer");
+        BufferedReader input = new BufferedReader(new InputStreamReader(sslsocket.getInputStream()));
+        log.atTrace().log("Created reader");
+
+        bos.write("""
+        OPTIONS * HTTP/1.1
+        Host: %s 
+        """.formatted(hostname));
+        bos.flush();
+
+        log.atTrace().log("Waiting for remote response");
+        log.atTrace().log("---------------------------");
+        input.lines().forEach( l -> log.atTrace().log(l));
+        log.atTrace().log("---------------------------");
     }
 
     private static class MyHostnameVerifier extends X509ExtendedTrustManager {
