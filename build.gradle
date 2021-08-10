@@ -52,10 +52,9 @@ jpackage {
     vendor = "org.terra.incognita"
     copyright = "Copyright (c) 2021 David Pérez Serrada <dserrada at gmail dot com>"
 
-    mainJar = "${jar.archiveFileName.get()}"
-    mainClass = "org.terra.incognita.fotwc.cli.Main"
+    module = "FlyOnTheWallCatcher.main/org.terra.incognita.fotwc.cli.Main"
 
-    input  = "$buildDir/jars"
+    modulePaths  = file("${buildDir}/jars")
     destination = "$buildDir/dist"
 }
 
