@@ -54,8 +54,8 @@ jpackage {
 
     module = "FlyOnTheWallCatcher.main/org.terra.incognita.fotwc.cli.Main"
 
-    modulePaths  = file("${buildDir}/jars")
-    destination = "$buildDir/dist"
+    modulePaths  = [ "${buildDir}/jars" ]
+    destination = "${buildDir}/dist"
 }
 
 dependencies {
