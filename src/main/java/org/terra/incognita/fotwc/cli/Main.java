@@ -4,13 +4,16 @@ package org.terra.incognita.fotwc.cli;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.config.Configurator;
 import org.terra.incognita.fotwc.api.InspectionStatus;
 import org.terra.incognita.fotwc.api.InspectorManager;
 import picocli.CommandLine;
 
+import javax.management.*;
 import java.io.File;
+import java.lang.management.ManagementFactory;
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.Set;
 
 
 /**
@@ -32,7 +35,7 @@ public class Main {
      * Set log level
      */
     @CommandLine.Option(names = {"-l", "--logLevel"}, description = "Set log level" )
-    private Level logLevel = Level.INFO;
+    private String logLevel = "INFO";
 
     private static String [][] expectedData = {
             // {"www.grc.com","7A:85:1C:F0:F6:9F:D0:CC:EA:EA:9A:88:01:96:BF:79:8C:E1:A8:33"},
@@ -54,7 +57,12 @@ public class Main {
 
         log.atTrace().log("Command options, verbose: {}",config.logLevel);
 
-        Configurator.setRootLevel(config.logLevel);
+        try {
+            changeLogRootLevel(Level.toLevel(config.logLevel));
+        } catch (JMException e) {
+            log.atDebug().log("Failed setting root log level");
+        }
+
 
         log.atDebug().log("Creating Inspector Manager...");
         InspectorManager im = new InspectorManager(config);
@@ -82,6 +90,19 @@ public class Main {
         log.atTrace().log("Shutting down");
     }
 
+    private static void changeLogRootLevel(Level logLevel) throws JMException {
+        // Configurator.setRootLevel(config.logLevel);
+         MBeanServer server = ManagementFactory.getPlatformMBeanServer();
+
+        Set<ObjectInstance> instances = server.queryMBeans(new ObjectName("org.apache.logging.log4j2:type=*,component=Loggers,name="), null);
+
+        Iterator<ObjectInstance> iterator = instances.iterator();
+
+        if (iterator.hasNext()) {
+            ObjectInstance instance = iterator.next();
+            server.setAttribute(instance.getObjectName(),new Attribute("Level",logLevel.toString()));
+        }
+    }
 
 
 }
