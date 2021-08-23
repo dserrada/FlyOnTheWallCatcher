@@ -67,7 +67,7 @@ public class Main {
         log.atDebug().log("Creating Inspector Manager...");
         InspectorManager im = new InspectorManager(config);
         Arrays.stream(expectedData).forEach( (data) -> {
-            InspectionStatus.StatusCode statusCode = im.inspectConnection(data[0],data[1]);
+            InspectionStatus.StatusCode statusCode = im.inspectConnection(data[0],443,data[1]);
             if ( statusCode != null ) {
                 switch (statusCode) {
                     case EAVESDROP_DETECTED:

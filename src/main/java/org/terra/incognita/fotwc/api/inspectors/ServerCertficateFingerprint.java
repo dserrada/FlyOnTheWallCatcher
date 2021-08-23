@@ -11,11 +11,9 @@ import javax.net.ssl.*;
 import java.io.*;
 import java.math.BigInteger;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.UnknownHostException;
-import java.security.KeyManagementException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
+import java.security.*;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -31,15 +29,18 @@ public class ServerCertficateFingerprint implements EavesdropInspector {
     private static final Logger log = LogManager.getLogger(ServerCertficateFingerprint.class);
 
     @Override
-    public InspectionStatus.StatusCode inspectHTTPSConnection(String hostname, String expectedFingerprint) {
+    public InspectionStatus.StatusCode inspectHTTPSConnection(String hostname, int port, String expectedFingerprint) {
         log.atTrace().log("Checking fingerprint of servercertificate to {} expected SHA1" ,hostname, expectedFingerprint);
         try {
             SSLContext sc = SSLContext.getInstance("SSL");
             sc.init(null,new TrustManager[] {new MyHostnameVerifier()}, new SecureRandom());
 
+            KeyStore keyStore = KeyStore.getInstance("JKS");
+            keyStore.load(getClass().getResourceAsStream("testng_client.keystore"), new char [] {});
+
             // See https://www.baeldung.com/java-ssl-handshake-failures
             SocketFactory factory = sc.getSocketFactory();
-            try (Socket connection = factory.createSocket(hostname, 443)) {
+            try (Socket connection = factory.createSocket(hostname, port)) {
                 SSLSocket sslsocket = (SSLSocket) connection;
                 // FIXME: Control ciphers
                 sslsocket.setEnabledCipherSuites(new String[] { "TLS_DHE_DSS_WITH_AES_256_CBC_SHA256","TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"});
@@ -74,15 +75,13 @@ public class ServerCertficateFingerprint implements EavesdropInspector {
                 }
 
                 sendSomeData(hostname, sslsocket);
-            } catch (UnknownHostException e) {
-                log.atError().withThrowable(e).log("UnknownHostException");
             } catch (IOException e) {
                 log.atError().withThrowable(e).log("UnknownHostException");
             }
 
             log.atDebug().log("Secured connection performed successfully");
 
-        } catch (NoSuchAlgorithmException | KeyManagementException | CertificateEncodingException e) {
+        } catch (NoSuchAlgorithmException | KeyManagementException | KeyStoreException | CertificateException | IOException e) {
             log.error("NoSuchAlgorithmException error",e);
         }
         return null;
