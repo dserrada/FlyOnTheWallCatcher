@@ -33,11 +33,11 @@ public class InspectorManager {
     }
 
 
-    public InspectionStatus.StatusCode inspectConnection(String hostname, String expectedFingerprint) {
+    public InspectionStatus.StatusCode inspectConnection(String hostname, int port, String expectedFingerprint) {
         log.atDebug().log("Testing connection to host {}",() -> hostname);
         // FIXME: Customize to support various inspectors
         ServerCertficateFingerprint fingerprint = new ServerCertficateFingerprint();
-        return fingerprint.inspectHTTPSConnection(hostname, expectedFingerprint);
+        return fingerprint.inspectHTTPSConnection(hostname, port, expectedFingerprint);
     }
 
 }
