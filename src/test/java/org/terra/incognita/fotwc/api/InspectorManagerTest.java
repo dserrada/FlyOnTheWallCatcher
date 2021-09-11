@@ -86,6 +86,7 @@ class InspectorManagerTest {
                         params.setCipherSuites(engine.getEnabledCipherSuites());
                         params.setProtocols(engine.getEnabledProtocols());
 
+
                         // Get the default parameters
                         SSLParameters defaultSSLParameters = c.getDefaultSSLParameters();
                         params.setSSLParameters(defaultSSLParameters);

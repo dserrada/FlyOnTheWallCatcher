@@ -32,7 +32,7 @@ public class ServerCertficateFingerprint implements EavesdropInspector {
         log.atTrace().log("Checking fingerprint of servercertificate to {} expected SHA1" ,hostname, expectedFingerprint);
         try {
             KeyStore keyStore = KeyStore.getInstance("JKS");
-            keyStore.load(getClass().getResourceAsStream("testng_client.keystore"), "".toCharArray()); // FIXME: Configurable password, and keystore
+            keyStore.load(getClass().getResourceAsStream("testng_client.keystore"), "".toCharArray()); // FIXME: Configurable password
 
             KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
             kmf.init(keyStore,"".toCharArray());
