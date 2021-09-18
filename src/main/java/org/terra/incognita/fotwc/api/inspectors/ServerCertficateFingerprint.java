@@ -31,11 +31,14 @@ public class ServerCertficateFingerprint implements EavesdropInspector {
     public InspectionStatus.StatusCode inspectHTTPSConnection(String hostname, int port, String expectedFingerprint) {
         log.atTrace().log("Checking fingerprint of servercertificate to {} expected SHA1" ,hostname, expectedFingerprint);
         try {
+            char [] keystorePassword = "".toCharArray(); // FIXME: Configurable password
             KeyStore keyStore = KeyStore.getInstance("JKS");
-            keyStore.load(getClass().getResourceAsStream("testng_client.keystore"), "".toCharArray()); // FIXME: Configurable password
+            keyStore.load(getClass().getResourceAsStream("testng_client.keystore"),
+                    keystorePassword);
 
             KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
-            kmf.init(keyStore,"".toCharArray());
+            kmf.init(keyStore,
+                    keystorePassword);  // is this the keystore password or the key password???
 
             SSLContext sc = SSLContext.getInstance("SSL");
             sc.init(kmf.getKeyManagers(),new TrustManager[] {new MyHostnameVerifier()}, new SecureRandom());
@@ -46,15 +49,15 @@ public class ServerCertficateFingerprint implements EavesdropInspector {
                 SSLSocket sslsocket = (SSLSocket) connection;
                 // FIXME: Configurable ciphers
                 sslsocket.setEnabledCipherSuites(new String[] { "TLS_DHE_DSS_WITH_AES_256_CBC_SHA256","TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"});
-                // FIXME: Configurable protocol
-                sslsocket.setEnabledProtocols(new String[] { "TLSv1.2"});
+                // FIXME: Configurable protocols
+                sslsocket.setEnabledProtocols(new String[] { "TLSv1.2","TLSv1.1"});
 
                 SSLParameters sslParams = new SSLParameters();
                 sslParams.setEndpointIdentificationAlgorithm("HTTPS");
                 sslsocket.setSSLParameters(sslParams);
 
                 sslsocket.setSoTimeout(5*1000);  // FIXME: Configurable
-                log.atTrace().log("Setting sotime");
+                log.atTrace().log("Setting sotime to: {} ms", sslsocket.getSoTimeout());
 
                 log.atTrace().log("handksake.protocol: {}",sslsocket.getHandshakeApplicationProtocol());
                 SSLSession sslSession = sslsocket.getSession();
@@ -63,12 +66,12 @@ public class ServerCertficateFingerprint implements EavesdropInspector {
                     MessageDigest digest = MessageDigest.getInstance("SHA-1");
                     BigInteger bigInteger = new BigInteger(1, digest.digest(data));
                     String sha1 = bigInteger.toString(16).toUpperCase();
-                    log.atTrace().log("SHA-1: {} ", sha1);
-                    if ( sha1.equalsIgnoreCase(sha1.replace(":","")) ) {
-                        log.info("Fingerprint SHA-1 matched...");
+                    log.atTrace().log("SHA-1: [{}], expected: [{}]", sha1, expectedFingerprint);
+                    if ( sha1.equalsIgnoreCase(expectedFingerprint.replace(":","")) ) {
+                        log.atInfo().log("Fingerprint SHA-1 matched...");
                         return InspectionStatus.StatusCode.NO_EAVESDROP_DETECTED;
                     } else {
-                        log.error("Fingerprint SHA-1 NOT matched... eavesdrop detected");
+                        log.atError().log("Fingerprint SHA-1 NOT matched... eavesdrop detected");
                         return InspectionStatus.StatusCode.EAVESDROP_DETECTED;
                     }
                 } else {
@@ -123,45 +126,45 @@ public class ServerCertficateFingerprint implements EavesdropInspector {
 
         @Override
         public void checkClientTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
-            log.trace("checkClientTrusted(X509Certificate[] x509Certificates, String s, Socket socket) - No checking client's certificate");
+            log.atTrace().log("checkClientTrusted(X509Certificate[] x509Certificates, String s, Socket socket) - No checking client's certificate");
 
         }
 
         @Override
         public void checkServerTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
-            log.trace("checkServerTrusted(X509Certificate[] x509Certificates, String s, Socket socket)");
+            log.atTrace().log("checkServerTrusted(X509Certificate[] x509Certificates, String s, Socket socket)");
             if ( x509Certificates != null ) {
-                log.debug("checkServerTrusted - firstCertificate: serialNumber: {} ",x509Certificates[0].getSerialNumber().toString(16).toLowerCase());
+                log.atTrace().log("checkServerTrusted - firstCertificate: serialNumber: {} ",x509Certificates[0].getSerialNumber().toString(16).toLowerCase());
             } else {
-                log.error("checkServerTrusted - Couldn't get certificate");
+                log.atError().log("checkServerTrusted - Couldn't get certificate");
             }
             // THIS IS THE METHOD TO IMPLEMENT
         }
 
         @Override
         public void checkClientTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
-            log.trace("heckClientTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) - No checking client's certificate");
+            log.atTrace().log("heckClientTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) - No checking client's certificate");
         }
 
         @Override
         public void checkServerTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
-            log.trace("checkServerTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine)");
+            log.atTrace().log("checkServerTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine)");
         }
 
 
         @Override
         public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-            log.trace("checkClientTrusted(X509Certificate[] x509Certificates, String s) - No checking client's certificate");
+            log.atTrace().log("checkClientTrusted(X509Certificate[] x509Certificates, String s) - No checking client's certificate");
         }
 
         @Override
         public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-            log.trace("checkServerTrusted - s: {}",s);
+            log.atTrace().log("checkServerTrusted - s: {}",s);
         }
 
         @Override
         public X509Certificate[] getAcceptedIssuers() {
-            log.debug("getAcceptedIssuers ");
+            log.atTrace().log("getAcceptedIssuers ");
             return new X509Certificate[0];
         }
     }
