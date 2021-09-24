@@ -3,20 +3,14 @@ package org.terra.incognita.fotwc.api;
 import com.sun.net.httpserver.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.terra.incognita.fotwc.cli.Main;
 
 import javax.net.ssl.*;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.security.*;
-import java.security.cert.CertificateException;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Spliterator;
@@ -24,59 +18,66 @@ import java.util.Spliterators;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.fail;
 
-class InspectorManagerTest {
+public abstract class HTTPSServerBase {
 
     /**
      * Simple log4j2 logger
      */
-    private static final Logger log = LogManager.getLogger(InspectorManagerTest.class);
+    private static final Logger log = LogManager.getLogger(HTTPSServerBase.class);
 
-    /**
-     * The server against
+    /***
+     * Start a HTTPS Server for testing
+     *
+     * @param host                  The hostname/ip where the server will listen for request
+     * @param port                  The port where the server will listen for request
+     * @param keyStorePath          The path, in classpath, where the keystore used by the server is.
+     * @param keyStorePassword      The password for the keystore (null values is the same as no password)
+     * @param keyAlias              The alias, in keystore, where the key pair (private and public) of the https server is
+     * @param keyPassword           The password of the key pair in keystore (referenced by alias). A null value is the same as no password
+     * @return  The started httpsServer
+     * @throws IOException  In case of any error in the proccess
      */
-    private HttpsServer httpsServer;
-
-    @BeforeEach
-    void setUp() throws IOException {
+    protected HttpsServer startHTTPSServer(String host, int port, String keyStorePath, String keyStorePassword, String keyAlias, String keyPassword) throws IOException {
         log.atTrace().log("on setUp");
+        HttpsServer tmpHTTPSServer = null;
         try {
             // Set up the socket address
-            InetSocketAddress address = new InetSocketAddress( "localhost",8443);
+            InetSocketAddress address = new InetSocketAddress(host, port);
 
             // Initialise the HTTPS server
-            httpsServer = HttpsServer.create(address, 0);
+            tmpHTTPSServer = HttpsServer.create(address, 0);
             log.atTrace().log("httpsServer created at address {} ", address.toString());
             SSLContext sslContext = SSLContext.getInstance("TLS");
-            log.atTrace().log("SSLContext retrieved with protocol {} and class {}", sslContext.getProtocol(),sslContext.getClass().getName());
+            log.atTrace().log("SSLContext retrieved with protocol {} and class {}", sslContext.getProtocol(), sslContext.getClass().getName());
 
             // Initialise the keystore
-            char [] keyPassword = "password".toCharArray(); // FIXME: fixed???
-            char [] keystorePassword = null;  // No password
+            char[] cKeyPassword = keyPassword == null ? null : keyPassword.toCharArray();
+            char[] cKeystorePassword = keyStorePassword == null ? null : keyStorePassword.toCharArray();  // No password
             String caAlias = "goodca";
-            String serverCertificateAlias = "localhost:8443 (goodca)";
+            String serverCertificateAlias = keyAlias;
 
             KeyStore ks = KeyStore.getInstance("JKS");
             //FileInputStream fis = new FileInputStream("testing_server_good.keystore");
-            InputStream fis = this.getClass().getClassLoader().getResourceAsStream("testing_server_good.keystore");
-            if ( fis != null ) {
+            InputStream fis = this.getClass().getClassLoader().getResourceAsStream(keyStorePath);
+            if (fis != null) {
                 log.atTrace().log("Opened input stream size: {}", fis.available());
             } else {
                 log.atError().log("Couldn't open keystrore file");
                 fail(); // ¿better solution?
             }
-            ks.load(fis, keystorePassword);
+            ks.load(fis, cKeystorePassword);
             log.atTrace().log("KeyStore read with aliases: {}", StreamSupport.stream(
                     Spliterators.spliteratorUnknownSize(ks.aliases().asIterator(), Spliterator.ORDERED),
                     false));
 
             X509Certificate cert = (X509Certificate) ks.getCertificate(serverCertificateAlias);
-            log.atTrace().log("Read certificate: {}",cert);
+            log.atTrace().log("Read certificate: {}", cert);
 
             // Set up the key manager factory
             KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
-            kmf.init(ks, keyPassword);
+            kmf.init(ks, cKeyPassword);
 
             log.atTrace().log("keyManagerFactory initiated");
 
@@ -88,24 +89,24 @@ class InspectorManagerTest {
 
             // Set up the HTTPS context and parameters
             sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
-            httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext) {
+            tmpHTTPSServer.setHttpsConfigurator(new HttpsConfigurator(sslContext) {
                 public void configure(HttpsParameters params) {
                     try {
                         log.atDebug().log(params.getProtocols() != null ?
-                                Arrays.stream(params.getProtocols()).collect(Collectors.joining(",","protocols: {","}"))
+                                Arrays.stream(params.getProtocols()).collect(Collectors.joining(",", "protocols: {", "}"))
                                 : "No protocols presents");
                         log.atDebug().log(params.getCipherSuites() != null ?
-                                Arrays.stream(params.getCipherSuites()).collect(Collectors.joining(",","ciphersuites: {","}"))
+                                Arrays.stream(params.getCipherSuites()).collect(Collectors.joining(",", "ciphersuites: {", "}"))
                                 : "No cipherSuites presents");
                         // Initialise the SSL context
                         SSLContext c = SSLContext.getDefault();
                         SSLEngine engine = c.createSSLEngine();
 
                         log.atDebug().log(engine.getEnabledProtocols() != null ?
-                                Arrays.stream(engine.getEnabledProtocols()).collect(Collectors.joining(",","protocols: {","}"))
+                                Arrays.stream(engine.getEnabledProtocols()).collect(Collectors.joining(",", "protocols: {", "}"))
                                 : "Engine has no protocols presents");
                         log.atDebug().log(engine.getEnabledCipherSuites() != null ?
-                                Arrays.stream(engine.getEnabledCipherSuites()).collect(Collectors.joining(",","ciphersuites: {","}"))
+                                Arrays.stream(engine.getEnabledCipherSuites()).collect(Collectors.joining(",", "ciphersuites: {", "}"))
                                 : "Engine has no cipherSuites presents");
                         params.setNeedClientAuth(false);
                         params.setWantClientAuth(false);
@@ -121,7 +122,7 @@ class InspectorManagerTest {
                     }
                 }
             });
-            httpsServer.createContext("/", new HttpHandler() {
+            tmpHTTPSServer.createContext("/", new HttpHandler() {
                 @Override
                 public void handle(HttpExchange httpExchange) throws IOException {
                     String response = "This an automated response: i'm alive and well.... good luck";
@@ -131,29 +132,29 @@ class InspectorManagerTest {
                     os.close();
                 }
             });
-            httpsServer.start();
-            log.atDebug().log("HTTPS Server started at {}:{}","localhost", 8443);
+            tmpHTTPSServer.start();
+            log.atDebug().log("HTTPS Server started at {}:{}", "localhost", 8443);
             try {
-                Thread.sleep(3*1_000L); // 3s
-            } catch (InterruptedException e) {}
+                Thread.sleep(3 * 1_000L); // 3s
+            } catch (InterruptedException e) {
+            }
         } catch (IOException | GeneralSecurityException ioe) {
             log.atError().withThrowable(ioe).log("Failed to create HTTPS server on port " + 8443 + " of localhost");
             throw new IOException(ioe);
         }
+        return tmpHTTPSServer;
     }
 
-    @AfterEach
-    void tearDown() throws IOException {
-        httpsServer.stop(0);
-        log.atDebug().log("HTTPS Server stop");
-    }
-
-    @Test
-    void inspectConnection() {
-        log.atDebug().log("Starting test");
-        Main config = new Main();
-        InspectorManager im = new InspectorManager(config);
-        InspectionStatus.StatusCode statusCode = im.inspectConnection("localhost",8443,"1F4FCC87A3866565C83FC1A90A1E194521E51B50");
-        log.atDebug().log("Ending test");
+    /**
+     * Stop a HTTPS Server
+     *
+     * @param server        The server to stop
+     * @throws IOException
+     */
+    void stopHTTPSServer(HttpsServer server) throws IOException {
+        if ( server != null ) {
+            server.stop(0);
+            log.atDebug().log("HTTPS Server stoped");
+        }
     }
 }
