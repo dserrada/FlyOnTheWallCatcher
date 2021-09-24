@@ -1,18 +1,99 @@
 plugins {
     id 'java'
+    id 'application'
+    // Plugin for jpackage (jdk14+) (see https://github.com/petr-panteleyev/jpackage-gradle-plugin)
+    id "org.panteleyev.jpackageplugin" version "1.3.1"
+
 }
 
 group 'org.terra.incognita'
-version '0.1-SNAPSHOT'
+version '0.0.1'
 
 repositories {
     mavenCentral()
 }
 
+java {
+    // Using JDK 16, only for fun. Waiting for LTS version 17.
+    // Using toolchain to auto select jdk version.
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(16)
+    }
+    // Use module information
+    modularity.inferModulePath = true
+}
+
+compileJava {
+    // Using picocli to provide a command line interface to this program (see https://picocli.info/)
+    options.compilerArgs += ["-Aproject=${rootProject.group}/${rootProject.name}"]
+}
+
 dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
+
+    // https://mvnrepository.com/artifact/org.apache.logging.log4j/log4j-api
+    implementation group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.+'
+    implementation group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.+'
+
+    // Command line utility
+    implementation 'info.picocli:picocli:4.+'
+    annotationProcessor 'info.picocli:picocli-codegen:4.+'
+
 }
+
+// Run as a module (it works without problem)
+application {
+    mainModule = "FlyOnTheWallCatcher.main"
+    mainClass = "org.terra.incognita.fotwc.cli.Main"
+}
+
+
+
+// ------------------------ JPackage ---------------------------------------
+// FIXME: The jpackage dosen't work because this application uses a library (log4j-core)
+// that is not modularized (log4j-api is modulorized but log4j-core is only a
+// automatic module). Jlink, used by jpackage, don't support automatic module
+// The following plugin https://badass-jlink-plugin.beryx.org/releases/latest/ helps with
+// modularization of automatic modules or non modules library, but don't work with jdk16
+
+
+// Using jpackage to create an installation package (Linux, windows, macos)
+// Prepare all files needed for the package
+// First: dependnecies
+task copyDependencies(type:Copy) {
+    from(configurations.runtimeClasspath) {
+        //exclude { it.file.name.contains('log4j-core') }
+    }
+    into("${buildDir}/jmods")
+}
+
+// Next: project jar file
+task copyJar(type:Copy) {
+    dependsOn("jar")
+    from tasks.jar
+    into "${buildDir}/jmods"
+}
+
+// Create package, SO depend, to install program
+jpackage {
+    dependsOn(':build','copyDependencies','copyJar')
+
+    appName = "fotwc"
+    appDescription = "FlyOnTheWallCatcher - A Java MitM detection tool for https"
+
+    appVersion = project.version.toString()
+    vendor = "org.terra.incognita"
+    copyright = "Copyright (c) 2021 David Pérez Serrada <dserrada at gmail dot com>"
+    licenseFile = "LICENSE"
+
+    module = "FlyOnTheWallCatcher.main/org.terra.incognita.fotwc.cli.Main"
+
+    modulePaths  = [ "${buildDir}/jmods" ]
+    input = "${buildDir}/resources/main/"
+    destination = "${buildDir}/dist"
+}
+
 
 test {
     useJUnitPlatform()
