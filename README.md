@@ -27,6 +27,7 @@ A list of future, and maybe one day real, features or things to do:
 * Use jpackage to distribute application.
 * Upgrade to use jdk 17 when available
 * Seal the classes... ¿not very important?
+* Automatic generation of pom.xml to help GitHub detecting dependencies
 
 ### Other types of eavesdropping detection
 * Change of gateway via a network card on LAN in promiscuous mode. 
