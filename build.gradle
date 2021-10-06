@@ -14,10 +14,9 @@ repositories {
 }
 
 java {
-    // Using JDK 16, only for fun. Waiting for LTS version 17.
     // Using toolchain to auto select jdk version.
     toolchain {
-        languageVersion = JavaLanguageVersion.of(16)
+        languageVersion = JavaLanguageVersion.of(17)
     }
     // Use module information
     modularity.inferModulePath = true
@@ -55,8 +54,10 @@ application {
 // that is not modularized (log4j-api is modulorized but log4j-core is only a
 // automatic module). Jlink, used by jpackage, don't support automatic module
 // The following plugin https://badass-jlink-plugin.beryx.org/releases/latest/ helps with
-// modularization of automatic modules or non modules library, but don't work with jdk16
+// modularization of automatic modules or non modules library, but don't work with jdk17
 
+// Not working with jdk17 in linux creating a deb package.
+// The executable fails with a core dump. The gradlew run works fine.
 
 // Using jpackage to create an installation package (Linux, windows, macos)
 // Prepare all files needed for the package
@@ -85,7 +86,7 @@ jpackage {
     appVersion = project.version.toString()
     vendor = "org.terra.incognita"
     copyright = "Copyright (c) 2021 David Pérez Serrada <dserrada at gmail dot com>"
-    licenseFile = "LICENSE"
+    // licenseFile = "LICENSE"
 
     module = "FlyOnTheWallCatcher.main/org.terra.incognita.fotwc.cli.Main"
 
